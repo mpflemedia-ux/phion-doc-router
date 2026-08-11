@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phion Document Router — PHN-ADM-001</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#080D1F;
+    --navy-900:#0B1330;
+    --navy-800:#111B42;
+    --navy-700:#182456;
+    --glass:rgba(24,36,86,.42);
+    --glass-hi:rgba(255,255,255,.05);
+    --gold:#D9B24C;
+    --gold-soft:#F0D68C;
+    --gold-glow:rgba(217,178,76,.35);
+    --violet:#7C7FFF;
+    --violet-glow:rgba(124,127,255,.35);
+    --line:rgba(140,158,220,.16);
+    --line-hi:rgba(217,178,76,.4);
+    --text:#EEF1FB;
+    --text-dim:#8C9AC4;
+    --ok:#3FDA9A;
+    --warn:#F0B94C;
+    --err:#FF6F73;
+    --ink-strong:#0B1330;
+    --font-display:'Sora', system-ui, sans-serif;
+    --font-body:'Inter', system-ui, sans-serif;
+    --font-mono:'JetBrains Mono', 'Consolas', monospace;
+  }
+  html[data-theme="light"]{
+    --navy-950:#F3F5FB;
+    --navy-900:#EAEEF9;
+    --navy-800:#DCE3F4;
+    --navy-700:#C9D3EE;
+    --glass:rgba(255,255,255,.6);
+    --glass-hi:rgba(255,255,255,.9);
+    --gold:#B8860B;
+    --gold-soft:#8A6508;
+    --gold-glow:rgba(184,134,11,.28);
+    --violet:#5C57E0;
+    --violet-glow:rgba(92,87,224,.25);
+    --line:rgba(60,74,140,.16);
+    --line-hi:rgba(184,134,11,.45);
+    --text:#111938;
+    --text-dim:#5B6688;
+    --ok:#1C9C6B;
+    --warn:#B9790F;
+    --err:#D1443F;
+  }
+  html[data-theme="light"] body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(92,87,224,.10), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 10%, rgba(184,134,11,.08), transparent 55%),
+      radial-gradient(ellipse 1200px 800px at 50% 120%, rgba(220,227,244,.7), transparent 60%),
+      var(--navy-950);
+  }
+  html[data-theme="light"] .topbar{
+    background:linear-gradient(180deg, rgba(255,255,255,.9) 0%, rgba(243,245,251,.6) 100%);
+  }
+  html[data-theme="light"] .step, html[data-theme="light"] .file-card{
+    box-shadow:0 14px 30px -18px rgba(60,74,140,.25), inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  html[data-theme="light"] .pipeline .node-bg{ fill:#fff; }
+  html[data-theme="light"] .pipeline text{ fill:var(--text-dim); }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; color:var(--text); font-family:var(--font-body); min-height:100vh;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,127,255,.16), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 90% 10%, rgba(217,178,76,.12), transparent 55%),
+      radial-gradient(ellipse 1200px 800px at 50% 120%, rgba(24,36,86,.5), transparent 60%),
+      var(--navy-950);
+    background-attachment:fixed;
+    position:relative;
+    overflow-x:hidden;
+  }
+  /* subtle animated grid floor for depth */
+  body::before{
+    content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(140,158,220,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140,158,220,.05) 1px, transparent 1px);
+    background-size:42px 42px;
+    mask-image:radial-gradient(ellipse 100% 60% at 50% 0%, black 0%, transparent 75%);
+  }
+
+  .topbar{
+    position:relative; z-index:2;
+    background:linear-gradient(180deg, rgba(17,27,66,.85) 0%, rgba(8,13,31,.4) 100%);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    border-bottom:1px solid var(--line);
+    padding:24px 36px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .topbar h1{
+    margin:0; font-family:var(--font-display); font-weight:700; font-size:21px;
+    letter-spacing:.2px;
+    background:linear-gradient(120deg, var(--gold-soft), var(--gold) 55%, var(--violet));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .topbar .doc-ref{color:var(--text-dim); font-size:11.5px; font-family:var(--font-mono); margin-top:5px; letter-spacing:.3px;}
+  .topbar-right{text-align:right; font-size:10.5px; color:var(--text-dim); font-family:var(--font-mono); letter-spacing:.5px; text-transform:uppercase;}
+  .topbar-right b{color:var(--gold-soft); display:block; font-size:11.5px; font-family:var(--font-display); text-transform:none; letter-spacing:0;}
+
+  .topbar-controls{display:flex; align-items:center; gap:10px;}
+  .ctrl-group{
+    display:flex; align-items:center; background:rgba(140,158,220,.08); border:1px solid var(--line);
+    border-radius:20px; padding:3px; gap:2px;
+  }
+  .ctrl-btn{
+    background:transparent; border:none; color:var(--text-dim); font-family:var(--font-mono);
+    font-size:11px; font-weight:600; padding:6px 12px; border-radius:16px; cursor:pointer;
+    letter-spacing:.3px; transition:.2s;
+  }
+  .ctrl-btn.active{background:linear-gradient(135deg, var(--gold-soft), var(--gold)); color:var(--ink-strong); box-shadow:0 2px 10px -2px var(--gold-glow);}
+  .ctrl-btn:not(.active):hover{color:var(--text);}
+  .theme-toggle{
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+    background:rgba(140,158,220,.08); color:var(--gold-soft); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+    transition:.2s;
+  }
+  .theme-toggle:hover{border-color:var(--line-hi); box-shadow:0 0 12px -2px var(--gold-glow);}
+
+  /* ===== HERO PIPELINE SIGNATURE ===== */
+  .hero{position:relative; z-index:1; max-width:1040px; margin:0 auto; padding:44px 24px 8px;}
+  .hero-label{font-family:var(--font-mono); font-size:11px; color:var(--violet); letter-spacing:2px; text-transform:uppercase; text-align:center; margin-bottom:6px;}
+  .hero-title{font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--text-dim); text-align:center; margin-bottom:26px;}
+  .pipeline{width:100%; height:auto; display:block; margin:0 auto; max-width:820px;}
+  .pipeline .node-glow{filter:drop-shadow(0 0 10px var(--gold-glow));}
+  .pipeline .node-glow.v{filter:drop-shadow(0 0 10px var(--violet-glow));}
+  .pipeline .node-bg{fill:var(--navy-800);}
+  .pipeline .flow-line{stroke-dasharray:6 7; animation:dash 1.6s linear infinite;}
+  @keyframes dash{to{stroke-dashoffset:-52;}}
+  .pipeline .pulse{animation:pulse 2.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.5; r:5;} 50%{opacity:1; r:7;}}
+  .pipeline text{font-family:var(--font-mono); font-size:10.5px; fill:var(--text-dim); letter-spacing:.5px;}
+
+  .wrap{position:relative; z-index:1; max-width:840px; margin:0 auto; padding:20px 24px 90px; perspective:1400px;}
+
+  .rail{position:absolute; left:35px; top:8px; bottom:90px; width:2px; z-index:0;
+    background:linear-gradient(180deg, var(--gold-glow), var(--line) 40%, var(--line) 100%);
+  }
+
+  .step{
+    position:relative; margin-left:56px; margin-bottom:22px;
+    background:linear-gradient(160deg, var(--glass-hi), var(--glass) 40%);
+    border:1px solid var(--line); border-radius:16px;
+    padding:26px 28px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    box-shadow:0 20px 40px -20px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+    transform-style:preserve-3d; transition:transform .35s ease, border-color .35s ease, box-shadow .35s ease;
+  }
+  .step:not(.disabled):hover{
+    border-color:var(--line-hi);
+    box-shadow:0 26px 54px -20px rgba(0,0,0,.7), 0 0 0 1px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .step.disabled{opacity:.38; pointer-events:none; filter:saturate(.5);}
+  .step-head{display:flex; align-items:center; gap:14px; margin-bottom:14px;}
+  .step-num{
+    position:absolute; left:-56px; top:26px; width:38px; height:38px; border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, #FCEFC0, var(--gold) 55%, #9c7a1f 100%);
+    color:var(--ink-strong); display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:15px; font-family:var(--font-display); flex-shrink:0;
+    box-shadow:0 0 0 5px var(--navy-950), 0 0 18px var(--gold-glow), inset 0 -2px 4px rgba(0,0,0,.25), inset 0 2px 3px rgba(255,255,255,.6);
+  }
+  .step-title{font-size:16px; font-weight:600; font-family:var(--font-display); letter-spacing:.1px;}
+  .step-sub{font-size:12.5px; color:var(--text-dim); margin:0 0 4px 0; line-height:1.5;}
+  label{display:block; font-size:11.5px; color:var(--text-dim); margin:14px 0 6px; letter-spacing:.2px;}
+  input[type=text], input[type=password]{
+    width:100%; background:rgba(8,13,31,.55); border:1px solid var(--line); color:var(--text);
+    padding:11px 13px; border-radius:9px; font-size:13px; font-family:var(--font-mono);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  input:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-glow);}
+  .btn{
+    background:linear-gradient(135deg, var(--gold-soft), var(--gold)); color:var(--ink-strong); border:none;
+    padding:11px 20px; border-radius:9px; font-weight:700; font-size:13px; font-family:var(--font-display);
+    cursor:pointer; margin-top:16px; letter-spacing:.2px;
+    box-shadow:0 8px 20px -8px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,.4);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover{transform:translateY(-1px); box-shadow:0 12px 26px -8px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,.5);}
+  .btn:active{transform:translateY(0);}
+  .btn.secondary{
+    background:rgba(124,127,255,.1); border:1px solid var(--violet); color:#C9CBFF;
+    box-shadow:0 0 16px -4px var(--violet-glow);
+  }
+  .btn.secondary:hover{background:rgba(124,127,255,.18); box-shadow:0 0 22px -2px var(--violet-glow);}
+  .btn.small{padding:6px 12px; font-size:11px; margin-top:0;}
+  .btn:disabled{opacity:.35; cursor:not-allowed; box-shadow:none; transform:none;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .pill{
+    display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:20px;
+    font-size:10.5px; font-weight:600; font-family:var(--font-mono); letter-spacing:.3px;
+    border:1px solid transparent;
+  }
+  .pill::before{content:''; width:6px; height:6px; border-radius:50%; background:currentColor; box-shadow:0 0 6px currentColor;}
+  .pill.ok{background:rgba(63,218,154,.1); color:var(--ok); border-color:rgba(63,218,154,.25);}
+  .pill.warn{background:rgba(240,185,76,.1); color:var(--warn); border-color:rgba(240,185,76,.25);}
+  .pill.err{background:rgba(255,111,115,.1); color:var(--err); border-color:rgba(255,111,115,.25);}
+  .folder-list{margin-top:16px; border-top:1px solid var(--line); padding-top:12px;}
+  .folder-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 2px; border-bottom:1px solid var(--line); font-size:12.5px; font-family:var(--font-mono);
+  }
+  .folder-item:hover{background:rgba(255,255,255,.02);}
+  .drop-zone{
+    border:1.5px dashed var(--line); border-radius:12px; padding:34px; text-align:center;
+    margin-top:14px; cursor:pointer; transition:.2s; background:rgba(8,13,31,.3);
+  }
+  .drop-zone:hover, .drop-zone.drag{border-color:var(--violet); background:rgba(124,127,255,.06); box-shadow:0 0 0 4px var(--violet-glow) inset;}
+  .drop-zone p{margin:6px 0; color:var(--text-dim); font-size:13px;}
+  .drop-zone .drop-icon{font-size:26px; filter:drop-shadow(0 0 10px var(--gold-glow));}
+  .file-card{
+    background:linear-gradient(160deg, var(--glass-hi), var(--glass) 45%);
+    border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px; margin-top:14px;
+    box-shadow:0 12px 24px -14px rgba(0,0,0,.6);
+  }
+  .file-card .fname{font-size:13px; font-weight:600; word-break:break-all; font-family:var(--font-display);}
+  .file-card .field{margin-top:8px;}
+  .file-card .field label{margin:0 0 3px;}
+  .file-card .path-preview{
+    background:rgba(8,13,31,.6); border:1px solid var(--line); border-radius:7px;
+    padding:9px 12px; font-family:var(--font-mono); font-size:11.5px; color:var(--gold-soft);
+    margin-top:6px; word-break:break-all;
+  }
+  .log{
+    background:rgba(8,13,31,.55); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin-top:14px; margin-left:56px; font-family:var(--font-mono); font-size:11px;
+    max-height:190px; overflow-y:auto; color:var(--text-dim); line-height:1.7;
+    backdrop-filter:blur(10px);
+  }
+  .log .l-ok{color:var(--ok);}
+  .log .l-err{color:var(--err);}
+  .log .l-warn{color:var(--warn);}
+  select{
+    width:100%; background:rgba(8,13,31,.55); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius:8px; font-size:12.5px;
+  }
+  .hint{font-size:11px; color:var(--text-dim); margin-top:8px; line-height:1.6;}
+  .hint a{color:var(--gold-soft);}
+  .toggle-row{display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; color:var(--text-dim);}
+  .audit-summary{
+    margin-top:16px; padding:14px 16px; background:rgba(124,127,255,.06); border:1px solid var(--violet-glow);
+    border-radius:10px; font-size:12.5px; color:var(--text-dim); display:flex; gap:18px; flex-wrap:wrap;
+  }
+  .audit-summary b{color:var(--text); font-family:var(--font-display); font-size:16px; display:block;}
+  .audit-card{
+    background:linear-gradient(160deg, var(--glass-hi), var(--glass) 45%);
+    border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-top:12px;
+  }
+  .audit-card .fname{font-size:13px; font-weight:600; font-family:var(--font-display); word-break:break-all;}
+  .audit-card .path-old{
+    font-family:var(--font-mono); font-size:11.5px; color:var(--err); margin-top:6px;
+    text-decoration:line-through; opacity:.75; word-break:break-all;
+  }
+  .audit-card .path-new{
+    font-family:var(--font-mono); font-size:11.5px; color:var(--ok); margin-top:3px; word-break:break-all;
+  }
+
+  @media (max-width:640px){
+    .rail{left:22px;}
+    .step{margin-left:40px; padding:20px;}
+    .step-num{left:-40px; width:32px; height:32px; font-size:13px;}
+    .log{margin-left:40px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Phion Document Router</h1>
+    <div class="doc-ref">Enforces PHN-ADM-001 · Document Management Policy &amp; SOP v1.0</div>
+  </div>
+  <div class="topbar-controls">
+    <div class="ctrl-group" id="langGroup">
+      <button class="ctrl-btn" data-lang="en">EN</button>
+      <button class="ctrl-btn" data-lang="ms">BM</button>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="hero-label" data-i18n="hero_label">Automated Routing Engine</div>
+  <div class="hero-title" data-i18n="hero_title">Files in → AI classifies → filed per SOP, automatically</div>
+  <svg class="pipeline" viewBox="0 0 820 130" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#D9B24C"/>
+        <stop offset="50%" stop-color="#7C7FFF"/>
+        <stop offset="100%" stop-color="#3FDA9A"/>
+      </linearGradient>
+    </defs>
+    <line x1="90" y1="65" x2="730" y2="65" stroke="url(#lineGrad)" stroke-width="1.5" opacity="0.35"/>
+    <line class="flow-line" x1="90" y1="65" x2="730" y2="65" stroke="url(#lineGrad)" stroke-width="1.5"/>
+
+    <g class="node-glow">
+      <circle class="node-bg" cx="90" cy="65" r="22" fill="#111B42" stroke="#D9B24C" stroke-width="1.5"/>
+      <circle class="pulse" cx="90" cy="65" r="5" fill="#D9B24C"/>
+      <text x="90" y="106" text-anchor="middle" data-i18n="pipe_upload">UPLOAD</text>
+    </g>
+    <g class="node-glow v">
+      <circle class="node-bg" cx="320" cy="65" r="22" fill="#111B42" stroke="#7C7FFF" stroke-width="1.5"/>
+      <circle class="pulse" cx="320" cy="65" r="5" fill="#7C7FFF" style="animation-delay:.5s"/>
+      <text x="320" y="106" text-anchor="middle" data-i18n="pipe_classify">AI CLASSIFY</text>
+    </g>
+    <g class="node-glow v">
+      <circle class="node-bg" cx="500" cy="65" r="22" fill="#111B42" stroke="#7C7FFF" stroke-width="1.5"/>
+      <circle class="pulse" cx="500" cy="65" r="5" fill="#7C7FFF" style="animation-delay:1s"/>
+      <text x="500" y="106" text-anchor="middle" data-i18n="pipe_rename">RENAME</text>
+    </g>
+    <g class="node-glow">
+      <circle class="node-bg" cx="730" cy="65" r="22" fill="#111B42" stroke="#3FDA9A" stroke-width="1.5"/>
+      <circle class="pulse" cx="730" cy="65" r="5" fill="#3FDA9A" style="animation-delay:1.5s"/>
+      <text x="730" y="106" text-anchor="middle" data-i18n="pipe_filed">FILED</text>
+    </g>
+  </svg>
+</div>
+
+<div class="wrap">
+  <div class="rail"></div>
+
+  <!-- STEP 1: CONNECT -->
+  <div class="step" id="step1">
+    <div class="step-head"><div class="step-num">1</div><div class="step-title" data-i18n="s1_title">Connect Google Drive</div></div>
+    <div class="step-sub" data-i18n="s1_sub">Requires your own OAuth Client ID (one-time setup in Google Cloud Console — see guide below)</div>
+    <label data-i18n="s1_label_client">Google OAuth Client ID</label>
+    <input type="text" id="clientId" placeholder="xxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com">
+    <label data-i18n="s1_label_groq">Groq API Key <span style="color:var(--text-dim)" data-i18n="s1_label_groq_note">(optional — for AI-assist when the rule engine isn't confident)</span></label>
+    <input type="password" id="groqKey" placeholder="gsk_...">
+    <div class="row">
+      <button class="btn" id="btnConnect" data-i18n="s1_btn_connect">Connect Google Drive</button>
+      <span id="connectStatus" class="pill" style="display:none;"></span>
+    </div>
+    <div class="hint" data-i18n="s1_hint">Client ID &amp; key are kept in browser memory only (sent nowhere except Google/Groq API directly). Refresh page = sign in again.</div>
+  </div>
+
+  <!-- STEP 2: SCAN FOLDER -->
+  <div class="step disabled" id="step2">
+    <div class="step-head"><div class="step-num">2</div><div class="step-title" data-i18n="s2_title">Scan &amp; Build Folder Structure</div></div>
+    <div class="step-sub" data-i18n="s2_sub">Paste the Phion Sdn Bhd Folder ID (from Drive URL: drive.google.com/drive/folders/<b>FOLDER_ID</b>)</div>
+    <label data-i18n="s2_label">Root Folder ID</label>
+    <input type="text" id="rootFolderId" placeholder="1AbCdEfGhIjKlMnOpQrStUvWxYz">
+    <div class="row">
+      <button class="btn" id="btnScan" data-i18n="s2_btn_scan">Scan Structure</button>
+      <button class="btn secondary" id="btnCreateMissing" style="display:none;" data-i18n="s2_btn_create">Create Missing Folders</button>
+    </div>
+    <div class="folder-list" id="folderResults"></div>
+  </div>
+
+  <!-- STEP 3: UPLOAD & CLASSIFY -->
+  <div class="step disabled" id="step3">
+    <div class="step-head"><div class="step-num">3</div><div class="step-title" data-i18n="s3_title">Upload, Classify &amp; Route</div></div>
+    <div class="step-sub" data-i18n="s3_sub">AI reads the file content, suggests a folder + name per the SOP naming convention — you confirm before upload</div>
+    <div class="drop-zone" id="dropZone">
+      <p style="font-size:16px;"><span data-i18n="s3_drop1">📄 Drag a file here, or click to select</span></p>
+      <p data-i18n="s3_drop2">PDF, DOCX, JPG, PNG supported for automatic content reading</p>
+    </div>
+    <input type="file" id="fileInput" multiple style="display:none;">
+    <div id="fileCards"></div>
+  </div>
+
+  <!-- STEP 4: AUDIT EXISTING FILES -->
+  <div class="step disabled" id="step4">
+    <div class="step-head"><div class="step-num">4</div><div class="step-title" data-i18n="s4_title">Audit &amp; Fix Existing Files</div></div>
+    <div class="step-sub" data-i18n="s4_sub">Scans every file already in the folder, checks it against the SOP, and lets you fix location + filename — review each proposed fix before it's applied</div>
+    <div class="row">
+      <button class="btn secondary" id="btnAudit" data-i18n="s4_btn_audit">Scan Existing Files</button>
+      <button class="btn" id="btnApplyAllAudit" style="display:none;" data-i18n="s4_btn_apply_all">Apply All Fixes</button>
+    </div>
+    <div id="auditSummary"></div>
+    <div id="auditCards"></div>
+  </div>
+
+  <div class="log" id="log">Ready. Enter your OAuth Client ID to begin.</div>
+
+</div>
+
+<script>
+/* ============================================================
+   THEME + LANGUAGE (persisted in localStorage — this is a
+   standalone hosted tool, not a Claude artifact sandbox)
+   ============================================================ */
+const TRANSLATIONS = {
+  en: {
+    hero_label: "Automated Routing Engine",
+    hero_title: "Files in → AI classifies → filed per SOP, automatically",
+    pipe_upload: "UPLOAD", pipe_classify: "AI CLASSIFY", pipe_rename: "RENAME", pipe_filed: "FILED",
+    s1_title: "Connect Google Drive",
+    s1_sub: "Requires your own OAuth Client ID (one-time setup in Google Cloud Console — see guide below)",
+    s1_label_client: "Google OAuth Client ID",
+    s1_label_groq: "Groq API Key",
+    s1_label_groq_note: "(optional — for AI-assist when the rule engine isn't confident)",
+    s1_btn_connect: "Connect Google Drive",
+    s1_hint: "Client ID & key are kept in browser memory only (sent nowhere except Google/Groq API directly). Refresh page = sign in again.",
+    s2_title: "Scan & Build Folder Structure",
+    s2_sub: "Paste the Phion Sdn Bhd Folder ID (from Drive URL: drive.google.com/drive/folders/<b>FOLDER_ID</b>)",
+    s2_label: "Root Folder ID",
+    s2_btn_scan: "Scan Structure",
+    s2_btn_create: "Create Missing Folders",
+    s3_title: "Upload, Classify & Route",
+    s3_sub: "AI reads the file content, suggests a folder + name per the SOP naming convention — you confirm before upload",
+    s3_drop1: "📄 Drag a file here, or click to select",
+    s3_drop2: "PDF, DOCX, JPG, PNG supported for automatic content reading",
+    log_ready: "Ready. Enter your OAuth Client ID to begin.",
+    pill_connected: "Connected",
+    pill_exists: "exists", pill_missing: "missing",
+    field_folder_label: "Destination Folder",
+    field_name_label: "New Filename (per SOP convention)",
+    confidence_ai: "AI-assisted", confidence_rule: "Rule match", confidence_none: "Unmatched — please review manually",
+    btn_confirm_upload: "Confirm & Upload",
+    analyzing: "Analyzing...",
+    uploaded_msg: "Uploaded to {folder}.", open_in_drive: "Open in Drive →",
+    summary_counts: "{existing} existing &nbsp; {missing} missing",
+    log_enter_client: "Enter your OAuth Client ID first.",
+    log_oauth_fail: "OAuth failed: {err}",
+    log_connected: "Google Drive connected.",
+    log_enter_root: "Enter Root Folder ID first.",
+    log_scanning: "Scanning structure...",
+    log_scan_done: "Scan complete: {existing} existing, {missing} missing.",
+    log_scan_error: "Scan error: {msg}",
+    log_creating: "Creating {n} folders...",
+    log_created: "Created: {path}",
+    log_create_fail: "Failed to create {path}: {msg}",
+    log_all_created: "All missing folders created. Re-scan to verify.",
+    log_process_fail: "Failed to process {name}: {msg}",
+    log_groq_fail: "Groq AI-assist failed for {name}, using rule engine only: {msg}",
+    log_auto_created: "Auto-created folder: {path}",
+    log_uploading: "Uploading {name} → {folder} ...",
+    log_uploaded: "Uploaded: {name}",
+    log_upload_fail: "Upload failed ({name}): {msg}",
+    s4_title: "Audit &amp; Fix Existing Files",
+    s4_sub: "Scans every file already in the folder, checks it against the SOP, and lets you fix location + filename — review each proposed fix before it's applied",
+    s4_btn_audit: "Scan Existing Files",
+    s4_btn_apply_all: "Apply All Fixes",
+    audit_summary: "<b>{total}</b> files scanned &nbsp;·&nbsp; <b>{compliant}</b> already compliant &nbsp;·&nbsp; <b>{fix}</b> need fixing",
+    audit_current: "Current", audit_proposed: "Proposed",
+    audit_btn_apply: "Apply Fix", audit_btn_skip: "Skip", audit_applied: "Fixed",
+    log_audit_start: "Scanning existing files in the folder tree...",
+    log_audit_found: "Found {n} files. Reading &amp; classifying...",
+    log_audit_read_fail: "Could not read content of {name}, classifying by filename only: {msg}",
+    log_audit_done: "Audit complete: {compliant} already compliant, {fix} need fixing.",
+    log_audit_apply_fail: "Failed to fix {name}: {msg}",
+    log_audit_applied: "Fixed: {name} → {folder}",
+    log_audit_apply_all_done: "Bulk fix complete."
+  },
+  ms: {
+    hero_label: "Enjin Penghalaan Automatik",
+    hero_title: "Fail masuk → AI mengklasifikasikan → difailkan mengikut SOP, secara automatik",
+    pipe_upload: "MUAT NAIK", pipe_classify: "AI KLASIFIKASI", pipe_rename: "NAMA SEMULA", pipe_filed: "DIFAILKAN",
+    s1_title: "Sambungkan Google Drive",
+    s1_sub: "Memerlukan ID Klien OAuth anda sendiri (persediaan sekali sahaja di Google Cloud Console — rujuk panduan di bawah)",
+    s1_label_client: "ID Klien OAuth Google",
+    s1_label_groq: "Kunci API Groq",
+    s1_label_groq_note: "(pilihan — untuk bantuan AI apabila enjin peraturan tidak yakin)",
+    s1_btn_connect: "Sambungkan Google Drive",
+    s1_hint: "ID Klien & kunci disimpan dalam memori pelayar sahaja (tidak dihantar ke mana-mana selain terus ke API Google/Groq). Muat semula halaman = perlu log masuk semula.",
+    s2_title: "Imbas &amp; Bina Struktur Folder",
+    s2_sub: "Tampal ID Folder Phion Sdn Bhd (daripada URL Drive: drive.google.com/drive/folders/<b>ID_FOLDER</b>)",
+    s2_label: "ID Folder Induk",
+    s2_btn_scan: "Imbas Struktur",
+    s2_btn_create: "Cipta Folder Yang Tiada",
+    s3_title: "Muat Naik, Klasifikasi &amp; Halakan",
+    s3_sub: "AI membaca kandungan fail, mencadangkan folder + nama mengikut konvensyen penamaan SOP — anda mengesahkan sebelum dimuat naik",
+    s3_drop1: "📄 Seret fail ke sini, atau klik untuk memilih",
+    s3_drop2: "PDF, DOCX, JPG, PNG disokong untuk pembacaan kandungan automatik",
+    log_ready: "Sedia. Masukkan ID Klien OAuth anda untuk bermula.",
+    pill_connected: "Disambungkan",
+    pill_exists: "wujud", pill_missing: "tiada",
+    field_folder_label: "Folder Destinasi",
+    field_name_label: "Nama Fail Baharu (mengikut konvensyen SOP)",
+    confidence_ai: "Dibantu AI", confidence_rule: "Padanan Peraturan", confidence_none: "Tiada padanan — sila semak secara manual",
+    btn_confirm_upload: "Sahkan & Muat Naik",
+    analyzing: "Menganalisis...",
+    uploaded_msg: "Telah dimuat naik ke {folder}.", open_in_drive: "Buka dalam Drive →",
+    summary_counts: "{existing} wujud &nbsp; {missing} tiada",
+    log_enter_client: "Sila masukkan ID Klien OAuth terlebih dahulu.",
+    log_oauth_fail: "OAuth gagal: {err}",
+    log_connected: "Google Drive telah disambungkan.",
+    log_enter_root: "Sila masukkan ID Folder Induk terlebih dahulu.",
+    log_scanning: "Mengimbas struktur...",
+    log_scan_done: "Imbasan selesai: {existing} wujud, {missing} tiada.",
+    log_scan_error: "Ralat imbasan: {msg}",
+    log_creating: "Mencipta {n} folder...",
+    log_created: "Dicipta: {path}",
+    log_create_fail: "Gagal mencipta {path}: {msg}",
+    log_all_created: "Semua folder yang tiada telah dicipta. Imbas semula untuk mengesahkan.",
+    log_process_fail: "Gagal memproses {name}: {msg}",
+    log_groq_fail: "Bantuan AI Groq gagal untuk {name}, menggunakan enjin peraturan sahaja: {msg}",
+    log_auto_created: "Folder dicipta secara automatik: {path}",
+    log_uploading: "Memuat naik {name} → {folder} ...",
+    log_uploaded: "Telah dimuat naik: {name}",
+    log_upload_fail: "Muat naik gagal ({name}): {msg}",
+    s4_title: "Audit &amp; Perbetulkan Fail Sedia Ada",
+    s4_sub: "Mengimbas setiap fail yang sudah wujud dalam folder, menyemak kepatuhan terhadap SOP, dan membolehkan anda perbetulkan lokasi + nama fail — semak setiap cadangan sebelum ia dilaksanakan",
+    s4_btn_audit: "Imbas Fail Sedia Ada",
+    s4_btn_apply_all: "Laksanakan Semua Pembetulan",
+    audit_summary: "<b>{total}</b> fail diimbas &nbsp;·&nbsp; <b>{compliant}</b> sudah patuh &nbsp;·&nbsp; <b>{fix}</b> perlu pembetulan",
+    audit_current: "Semasa", audit_proposed: "Dicadangkan",
+    audit_btn_apply: "Laksanakan", audit_btn_skip: "Langkau", audit_applied: "Telah Diperbetulkan",
+    log_audit_start: "Mengimbas fail sedia ada dalam struktur folder...",
+    log_audit_found: "Ditemui {n} fail. Membaca &amp; mengklasifikasikan...",
+    log_audit_read_fail: "Tidak dapat membaca kandungan {name}, klasifikasi mengikut nama fail sahaja: {msg}",
+    log_audit_done: "Audit selesai: {compliant} sudah patuh, {fix} perlu pembetulan.",
+    log_audit_apply_fail: "Gagal memperbetulkan {name}: {msg}",
+    log_audit_applied: "Diperbetulkan: {name} → {folder}",
+    log_audit_apply_all_done: "Pembetulan pukal selesai."
+  }
+};
+
+let currentLang = localStorage.getItem('pdr_lang') || 'en';
+let currentTheme = localStorage.getItem('pdr_theme') || 'dark';
+
+function t(key, params){
+  let str = (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || TRANSLATIONS.en[key] || key;
+  if(params){ Object.keys(params).forEach(k => { str = str.replaceAll(`{${k}}`, params[k]); }); }
+  return str;
+}
+
+function applyStaticI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.innerHTML = t(key);
+  });
+  document.documentElement.lang = currentLang;
+  document.querySelectorAll('#langGroup .ctrl-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.lang === currentLang);
+  });
+}
+
+function setLang(lang){
+  currentLang = lang;
+  localStorage.setItem('pdr_lang', lang);
+  applyStaticI18n();
+}
+
+function setTheme(theme){
+  currentTheme = theme;
+  localStorage.setItem('pdr_theme', theme);
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeToggle').textContent = theme === 'dark' ? '🌙' : '☀️';
+}
+
+document.getElementById('langGroup').addEventListener('click', e => {
+  const btn = e.target.closest('.ctrl-btn');
+  if(btn) setLang(btn.dataset.lang);
+});
+document.getElementById('themeToggle').addEventListener('click', () => {
+  setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+});
+
+setTheme(currentTheme);
+applyStaticI18n();
+document.getElementById('log').textContent = t('log_ready');
+
+/* ============================================================
+   CONFIG — SOP PHN-ADM-001 STRUCTURE
+   Edit sub-folder list di sini ikut master structure document
+   sebenar (SOP ada refer "master structure document" berasingan
+   yang tak included dalam policy ni — isi apa yang confirmed).
+   ============================================================ */
+const COMPANY = "Phion";
+
+const SOP_STRUCTURE = {
+  "01_Administration": [
+    "01.1_Company Registration & Licenses",
+    "01.2_Meeting Minutes",
+    "01.3_Policies & SOPs/Company Policies"
+  ],
+  "02_Finance": [
+    "02.1_Invoices (Client)",
+    "02.2_Invoices (Vendor)",
+    "02.3_Outstanding",
+    "02.4_Bank Statements",
+    "02.5_Tax Documents",
+    "02.6_Management Accounts"
+  ],
+  "03_Human Resource": [
+    "03.1_Employee Records",
+    "03.2_Claims & Reimbursement",
+    "03.3_Leave Applications",
+    "03.4_Payslips",
+    "03.5_Appraisals"
+  ],
+  "04_Brand & Marketing": [
+    "04.1_Brand Assets",
+    "04.2_Social Media Content",
+    "04.3_Campaigns"
+  ],
+  "05_Clients": [], // per-client subfolders generated dynamically, see CLIENT_SUBFOLDERS
+  "06_Partners & Vendors": [
+    "Partners",
+    "Vendors"
+  ],
+  "07_Projects": [], // per-project: Brief, Planning, Working Files, Feedback, Final, Handover
+  "08_Legal": [
+    "Master Templates",
+    "NDAs",
+    "IP Documents"
+  ],
+  "09_Operations": [
+    "Templates",
+    "Software List",
+    "Asset Register"
+  ],
+  "99_Archive": []
+};
+
+const CLIENT_SUBFOLDERS = [
+  "01_Contracts & Agreements",
+  "02_Proposals & Quotations",
+  "03_Brief & Requirements",
+  "04_Working Files",
+  "05_Final Deliverables",
+  "06_Invoices & Payment",
+  "07_Meeting Notes & Communication",
+  "08_Feedback & Revisions"
+];
+
+/* ============================================================
+   RULE ENGINE — keyword -> {folder path, category code}
+   Edit / tambah rule ikut keperluan sebenar.
+   Path guna "/" sebagai separator, resolved relative to root.
+   ============================================================ */
+const RULES = [
+  { test: /claim|tuntutan|mileage|reimburse/i, category: "HR_Claim",
+    folder: "03_Human Resource/03.2_Claims & Reimbursement/{YEAR}/{MONTH}" },
+  { test: /invoice|\binv\b|resit|receipt/i, category: "INV",
+    folder: "02_Finance/02.1_Invoices (Client)/{YEAR}/{MONTH}" },
+  { test: /offer letter|\bloa\b|letter of offer/i, category: "OfferLetter",
+    folder: "03_Human Resource/03.1_Employee Records/{EMPLOYEE}" },
+  { test: /payslip|salary slip|gaji/i, category: "Payslip",
+    folder: "03_Human Resource/03.4_Payslips/{YEAR}/{MONTH}" },
+  { test: /\bnda\b|non[- ]disclosure/i, category: "NDA",
+    folder: "08_Legal/NDAs" },
+  { test: /contract|agreement|perjanjian/i, category: "Contract",
+    folder: "05_Clients/{CLIENT}/01_Contracts & Agreements" },
+  { test: /proposal|quotation|sebut harga/i, category: "Proposal",
+    folder: "05_Clients/{CLIENT}/02_Proposals & Quotations" },
+  { test: /policy|\bsop\b|handbook/i, category: "Policy",
+    folder: "01_Administration/01.3_Policies & SOPs/Company Policies" },
+  { test: /bank statement|penyata bank/i, category: "BankStatement",
+    folder: "02_Finance/02.4_Bank Statements/{YEAR}/{MONTH}" },
+  { test: /appraisal|penilaian prestasi/i, category: "Appraisal",
+    folder: "03_Human Resource/03.5_Appraisals/{YEAR}" },
+  { test: /leave application|cuti/i, category: "Leave",
+    folder: "03_Human Resource/03.3_Leave Applications/{YEAR}" }
+];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let accessToken = null;
+let tokenClient = null;
+let rootFolderId = null;
+let folderCache = {}; // path -> {id, exists}
+let stagedFiles = [];
+
+function log(msg, type){
+  const el = document.getElementById('log');
+  const cls = type ? `l-${type}` : '';
+  el.innerHTML += `<div class="${cls}">${new Date().toLocaleTimeString()} — ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function unlock(stepId){ document.getElementById(stepId).classList.remove('disabled'); }
+
+/* ============================================================
+   STEP 1 — GOOGLE OAUTH
+   ============================================================ */
+document.getElementById('btnConnect').addEventListener('click', () => {
+  const clientId = document.getElementById('clientId').value.trim();
+  if(!clientId){ log(t('log_enter_client'), 'err'); return; }
+
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: 'https://www.googleapis.com/auth/drive',
+    callback: (resp) => {
+      if(resp.error){ log(t('log_oauth_fail', {err: resp.error}), 'err'); return; }
+      accessToken = resp.access_token;
+      const st = document.getElementById('connectStatus');
+      st.style.display = 'inline-block';
+      st.className = 'pill ok';
+      st.textContent = t('pill_connected');
+      log(t('log_connected'), 'ok');
+      unlock('step2');
+    }
+  });
+  tokenClient.requestAccessToken();
+});
+
+/* ============================================================
+   DRIVE API HELPERS
+   ============================================================ */
+async function driveFetch(url, opts={}){
+  opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + accessToken });
+  const res = await fetch(url, opts);
+  if(!res.ok){
+    const errBody = await res.text();
+    throw new Error(`Drive API ${res.status}: ${errBody.slice(0,200)}`);
+  }
+  return res.json();
+}
+
+async function listChildren(parentId){
+  const q = encodeURIComponent(`'${parentId}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'`);
+  const data = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=200`);
+  return data.files || [];
+}
+
+async function createFolder(name, parentId){
+  return driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId]
+    })
+  });
+}
+
+/* ============================================================
+   AUDIT HELPERS — list/read/move existing files already in Drive
+   ============================================================ */
+async function listFilesOnly(parentId){
+  const q = encodeURIComponent(`'${parentId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`);
+  const data = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,createdTime,parents)&pageSize=200`);
+  return data.files || [];
+}
+
+async function walkFolderTree(folderId, pathParts, out){
+  const files = await listFilesOnly(folderId);
+  for(const f of files){ out.push({ ...f, currentPath: pathParts.join('/'), currentParentId: folderId }); }
+  const subfolders = await listChildren(folderId);
+  for(const sf of subfolders){
+    await walkFolderTree(sf.id, [...pathParts, sf.name], out);
+  }
+}
+
+async function downloadDriveFile(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  });
+  if(!res.ok) throw new Error('Drive download ' + res.status);
+  return res;
+}
+
+async function exportGoogleDoc(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`, {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  });
+  if(!res.ok) throw new Error('Drive export ' + res.status);
+  return res.text();
+}
+
+async function extractDriveFileText(file){
+  try{
+    if(file.mimeType === 'application/pdf'){
+      const res = await downloadDriveFile(file.id);
+      const buf = await res.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+      let text = '';
+      const maxPages = Math.min(pdf.numPages, 3);
+      for(let i=1; i<=maxPages; i++){
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(it => it.str).join(' ') + '\n';
+      }
+      return text.slice(0, 4000);
+    }
+    if(file.mimeType === 'text/plain' || file.mimeType === 'text/csv'){
+      const res = await downloadDriveFile(file.id);
+      return (await res.text()).slice(0, 4000);
+    }
+    if(file.mimeType === 'application/vnd.google-apps.document'){
+      return (await exportGoogleDoc(file.id)).slice(0, 4000);
+    }
+  } catch(e){
+    log(t('log_audit_read_fail', {name: file.name, msg: e.message}), 'warn');
+  }
+  return ''; // fallback: classify by filename only (same limit as new-file upload for DOCX/images)
+}
+
+async function moveRenameDriveFile(fileId, oldParentId, newParentId, newName){
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?addParents=${newParentId}&removeParents=${oldParentId}&fields=id,name,parents`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName })
+    }
+  );
+  if(!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/* ============================================================
+   STEP 2 — SCAN + BUILD STRUCTURE
+   ============================================================ */
+document.getElementById('btnScan').addEventListener('click', async () => {
+  rootFolderId = document.getElementById('rootFolderId').value.trim();
+  if(!rootFolderId){ log(t('log_enter_root'), 'err'); return; }
+
+  log(t('log_scanning'), null);
+  const resultsEl = document.getElementById('folderResults');
+  resultsEl.innerHTML = '';
+  folderCache = {};
+
+  try{
+    const missing = [];
+    const existing = [];
+
+    for(const [mainFolder, subs] of Object.entries(SOP_STRUCTURE)){
+      const rootChildren = await listChildren(rootFolderId);
+      let mainMatch = rootChildren.find(f => f.name === mainFolder);
+      if(mainMatch){
+        existing.push(mainFolder);
+        folderCache[mainFolder] = mainMatch.id;
+      } else {
+        missing.push({ path: mainFolder, parentPath: null, parentId: rootFolderId });
+        continue; // sub-folders will be created after main folder exists
+      }
+      // check sub-folders (only for statically-defined ones; 05_Clients/07_Projects handled per-file at classify time)
+      if(subs.length){
+        const subChildren = await listChildren(mainMatch.id);
+        for(const sub of subs){
+          const topLevel = sub.split('/')[0];
+          const found = subChildren.find(f => f.name === topLevel);
+          if(found){
+            existing.push(`${mainFolder}/${topLevel}`);
+            folderCache[`${mainFolder}/${topLevel}`] = found.id;
+          } else {
+            missing.push({ path: `${mainFolder}/${sub}`, parentPath: mainFolder, parentId: mainMatch.id });
+          }
+        }
+      }
+    }
+
+    resultsEl.innerHTML = `<div style="margin-bottom:8px;"><span class="pill ok">${existing.length} ${t('pill_exists')}</span> &nbsp; <span class="pill warn">${missing.length} ${t('pill_missing')}</span></div>`;
+    missing.forEach(m => {
+      resultsEl.innerHTML += `<div class="folder-item"><span>${m.path}</span><span class="pill warn">${t('pill_missing')}</span></div>`;
+    });
+    existing.forEach(e => {
+      resultsEl.innerHTML += `<div class="folder-item"><span>${e}</span><span class="pill ok">${t('pill_exists')}</span></div>`;
+    });
+
+    if(missing.length){
+      window._pendingMissing = missing;
+      document.getElementById('btnCreateMissing').style.display = 'inline-block';
+    }
+    log(t('log_scan_done', {existing: existing.length, missing: missing.length}), 'ok');
+    unlock('step3');
+    unlock('step4');
+  } catch(e){
+    log(t('log_scan_error', {msg: e.message}), 'err');
+  }
+});
+
+document.getElementById('btnCreateMissing').addEventListener('click', async () => {
+  const missing = window._pendingMissing || [];
+  log(t('log_creating', {n: missing.length}), null);
+  for(const m of missing){
+    try{
+      // create nested path segment by segment under parentId
+      const parts = m.path.split('/');
+      let parentId = m.parentId;
+      let builtPath = '';
+      for(let i = (m.parentPath ? m.parentPath.split('/').length : 0); i < parts.length; i++){
+        const segChildren = await listChildren(parentId);
+        let seg = segChildren.find(f => f.name === parts[i]);
+        if(!seg){
+          seg = await createFolder(parts[i], parentId);
+          log(t('log_created', {path: m.path.split('/').slice(0,i+1).join('/')}), 'ok');
+        }
+        parentId = seg.id;
+      }
+      folderCache[m.path] = parentId;
+    } catch(e){
+      log(t('log_create_fail', {path: m.path, msg: e.message}), 'err');
+    }
+  }
+  log(t('log_all_created'), 'ok');
+  document.getElementById('btnCreateMissing').style.display = 'none';
+});
+
+/* ============================================================
+   STEP 3 — UPLOAD, EXTRACT TEXT, CLASSIFY
+   ============================================================ */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+async function handleFiles(fileList){
+  for(const file of fileList){
+    const card = renderFileCard(file);
+    document.getElementById('fileCards').appendChild(card);
+    try{
+      const text = await extractText(file);
+      const suggestion = await classify(file.name, text);
+      applySuggestion(card, file, suggestion);
+    } catch(e){
+      log(t('log_process_fail', {name: file.name, msg: e.message}), 'err');
+    }
+  }
+}
+
+async function extractText(file){
+  const type = file.type;
+  if(type === 'application/pdf'){
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+    let text = '';
+    const maxPages = Math.min(pdf.numPages, 3); // first 3 pages cukup untuk classify
+    for(let i=1; i<=maxPages; i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(it => it.str).join(' ') + '\n';
+    }
+    return text.slice(0, 4000);
+  }
+  if(type.startsWith('text/') || type === 'text/csv'){
+    return (await file.text()).slice(0, 4000);
+  }
+  // image / docx / others: takde extractor built-in, rely on filename sahaja
+  return '';
+}
+
+function ruleMatch(filename, text){
+  const combined = (filename + ' ' + text).toLowerCase();
+  for(const r of RULES){
+    if(r.test.test(combined)) return r;
+  }
+  return null;
+}
+
+async function classify(filename, text, referenceDate){
+  const rule = ruleMatch(filename, text);
+  const today = referenceDate || new Date();
+  const YEAR = today.getFullYear();
+  const MONTH = today.toLocaleString('en', {month:'long'});
+
+  let category = rule ? rule.category : 'Misc';
+  let folderTemplate = rule ? rule.folder : '99_Archive';
+  let description = filename.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ');
+  let client = '(ClientName)';
+  let employee = '(EmployeeName)';
+
+  const groqKey = document.getElementById('groqKey').value.trim();
+  if(groqKey && text){
+    try{
+      const aiResult = await groqClassify(groqKey, filename, text);
+      if(aiResult){
+        category = aiResult.category || category;
+        description = aiResult.description || description;
+        if(aiResult.client) client = aiResult.client;
+        if(aiResult.employee) employee = aiResult.employee;
+      }
+    } catch(e){
+      log(t('log_groq_fail', {name: filename, msg: e.message}), 'warn');
+    }
+  }
+
+  let folder = folderTemplate
+    .replace('{YEAR}', YEAR).replace('{MONTH}', MONTH)
+    .replace('{CLIENT}', client).replace('{EMPLOYEE}', employee);
+
+  const ext = filename.split('.').pop();
+  const dateStr = `${YEAR}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+  const shortDesc = description.split(' ').slice(0,5).join(' ').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'');
+  const newName = `${dateStr}_${COMPANY}_${category}_${shortDesc}_Draft.${ext}`;
+
+  return { category, folder, newName, confidence: rule ? 'rule' : (groqKey ? 'ai' : 'none') };
+}
+
+async function groqClassify(apiKey, filename, text){
+  const prompt = `Kau AI document classifier ikut Phion Sdn Bhd SOP PHN-ADM-001. Filename: "${filename}". Isi kandungan (potongan): """${text.slice(0,1500)}""". Balas HANYA JSON tanpa markdown: {"category":"kod pendek (contoh: Invoice, Contract, Claim, NDA)","description":"3-5 patah perkataan describe fail ni","client":"nama client kalau relevant atau null","employee":"nama employee kalau relevant atau null"}`;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({
+      model: 'openai/gpt-oss-120b',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2
+    })
+  });
+  if(!res.ok) throw new Error('Groq API ' + res.status);
+  const data = await res.json();
+  const raw = data.choices[0].message.content.replace(/```json|```/g,'').trim();
+  return JSON.parse(raw);
+}
+
+function renderFileCard(file){
+  const div = document.createElement('div');
+  div.className = 'file-card';
+  div.innerHTML = `
+    <div class="fname">${file.name}</div>
+    <div class="field"><span class="pill warn">${t('analyzing')}</span></div>
+  `;
+  return div;
+}
+
+function applySuggestion(card, file, suggestion){
+  card.innerHTML = `
+    <div class="fname">📄 ${file.name}</div>
+    <div class="field">
+      <label>${t('field_folder_label')}</label>
+      <input type="text" class="s-folder" value="${suggestion.folder}">
+    </div>
+    <div class="field">
+      <label>${t('field_name_label')}</label>
+      <input type="text" class="s-name" value="${suggestion.newName}">
+    </div>
+    <div class="path-preview">→ ${suggestion.folder}/${suggestion.newName}</div>
+    <div class="row" style="margin-top:10px;">
+      <span class="pill ${suggestion.confidence==='ai'?'ok':suggestion.confidence==='rule'?'ok':'warn'}">${suggestion.confidence==='ai'?t('confidence_ai'):suggestion.confidence==='rule'?t('confidence_rule'):t('confidence_none')}</span>
+      <button class="btn small confirm-btn">${t('btn_confirm_upload')}</button>
+    </div>
+  `;
+  const folderInput = card.querySelector('.s-folder');
+  const nameInput = card.querySelector('.s-name');
+  const preview = card.querySelector('.path-preview');
+  const updatePreview = () => preview.textContent = `→ ${folderInput.value}/${nameInput.value}`;
+  folderInput.addEventListener('input', updatePreview);
+  nameInput.addEventListener('input', updatePreview);
+
+  card.querySelector('.confirm-btn').addEventListener('click', async () => {
+    await uploadToDrive(file, folderInput.value, nameInput.value, card);
+  });
+}
+
+/* ============================================================
+   RESOLVE / CREATE FOLDER PATH ON THE FLY (untuk 05_Clients,
+   07_Projects, atau path yang belum wujud dalam folderCache)
+   ============================================================ */
+async function resolveFolderPath(path){
+  if(folderCache[path]) return folderCache[path];
+  const parts = path.split('/');
+  let parentId = rootFolderId;
+  let built = '';
+  for(const part of parts){
+    built = built ? `${built}/${part}` : part;
+    if(folderCache[built]){ parentId = folderCache[built]; continue; }
+    const children = await listChildren(parentId);
+    let match = children.find(f => f.name === part);
+    if(!match){
+      match = await createFolder(part, parentId);
+      log(t('log_auto_created', {path: built}), 'ok');
+    }
+    folderCache[built] = match.id;
+    parentId = match.id;
+  }
+  return parentId;
+}
+
+async function uploadToDrive(file, folderPath, newName, card){
+  try{
+    log(t('log_uploading', {name: newName, folder: folderPath}), null);
+    const parentId = await resolveFolderPath(folderPath);
+
+    const metadata = { name: newName, parents: [parentId] };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], {type:'application/json'}));
+    form.append('file', file);
+
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken },
+      body: form
+    });
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    card.innerHTML = `<div class="fname">✅ ${newName}</div><div class="hint">${t('uploaded_msg', {folder: folderPath})} <a href="${data.webViewLink}" target="_blank" style="color:var(--gold-soft)">${t('open_in_drive')}</a></div>`;
+    log(t('log_uploaded', {name: newName}), 'ok');
+  } catch(e){
+    log(t('log_upload_fail', {name: newName, msg: e.message}), 'err');
+  }
+}
+
+/* ============================================================
+   STEP 4 — AUDIT & FIX EXISTING FILES
+   ============================================================ */
+window._auditQueue = []; // items needing fix: {file, suggestion, cardEl}
+
+document.getElementById('btnAudit').addEventListener('click', async () => {
+  const auditCardsEl = document.getElementById('auditCards');
+  const summaryEl = document.getElementById('auditSummary');
+  auditCardsEl.innerHTML = '';
+  summaryEl.innerHTML = '';
+  document.getElementById('btnApplyAllAudit').style.display = 'none';
+  window._auditQueue = [];
+
+  log(t('log_audit_start'), null);
+  const allFiles = [];
+  try{
+    await walkFolderTree(rootFolderId, [], allFiles);
+  } catch(e){
+    log(t('log_scan_error', {msg: e.message}), 'err');
+    return;
+  }
+  log(t('log_audit_found', {n: allFiles.length}), null);
+
+  let compliantCount = 0, fixCount = 0;
+  const nameConvention = /^\d{8}_[A-Za-z0-9]+_[A-Za-z0-9]+_.+\.[A-Za-z0-9]+$/;
+
+  for(const f of allFiles){
+    const text = await extractDriveFileText(f);
+    const refDate = f.createdTime ? new Date(f.createdTime) : new Date();
+    const suggestion = await classify(f.name, text, refDate);
+
+    const pathCompliant = f.currentPath === suggestion.folder;
+    const nameCompliant = nameConvention.test(f.name);
+
+    if(pathCompliant && nameCompliant){
+      compliantCount++;
+      continue;
+    }
+    fixCount++;
+    renderAuditCard(f, suggestion, auditCardsEl);
+  }
+
+  summaryEl.className = 'audit-summary';
+  summaryEl.innerHTML = t('audit_summary', {total: allFiles.length, compliant: compliantCount, fix: fixCount});
+  log(t('log_audit_done', {compliant: compliantCount, fix: fixCount}), 'ok');
+  if(fixCount > 0) document.getElementById('btnApplyAllAudit').style.display = 'inline-block';
+});
+
+function renderAuditCard(file, suggestion, container){
+  const card = document.createElement('div');
+  card.className = 'audit-card';
+  card.innerHTML = `
+    <div class="fname">📄 ${file.name}</div>
+    <div class="path-old">✕ ${file.currentPath || '(root)'} / ${file.name}</div>
+    <div class="field">
+      <label>${t('field_folder_label')}</label>
+      <input type="text" class="a-folder" value="${suggestion.folder}">
+    </div>
+    <div class="field">
+      <label>${t('field_name_label')}</label>
+      <input type="text" class="a-name" value="${suggestion.newName}">
+    </div>
+    <div class="path-new">✓ <span class="a-preview">${suggestion.folder} / ${suggestion.newName}</span></div>
+    <div class="row" style="margin-top:10px;">
+      <span class="pill ${suggestion.confidence==='ai'?'ok':suggestion.confidence==='rule'?'ok':'warn'}">${suggestion.confidence==='ai'?t('confidence_ai'):suggestion.confidence==='rule'?t('confidence_rule'):t('confidence_none')}</span>
+      <button class="btn small a-apply">${t('audit_btn_apply')}</button>
+      <button class="btn small secondary a-skip">${t('audit_btn_skip')}</button>
+    </div>
+  `;
+  const folderInput = card.querySelector('.a-folder');
+  const nameInput = card.querySelector('.a-name');
+  const preview = card.querySelector('.a-preview');
+  const updatePreview = () => preview.textContent = `${folderInput.value} / ${nameInput.value}`;
+  folderInput.addEventListener('input', updatePreview);
+  nameInput.addEventListener('input', updatePreview);
+
+  const item = { file, getFolder: () => folderInput.value, getName: () => nameInput.value, cardEl: card };
+  window._auditQueue.push(item);
+
+  card.querySelector('.a-skip').addEventListener('click', () => {
+    card.style.display = 'none';
+    window._auditQueue = window._auditQueue.filter(q => q !== item);
+  });
+  card.querySelector('.a-apply').addEventListener('click', async () => {
+    await applyAuditFix(item);
+  });
+
+  container.appendChild(card);
+}
+
+async function applyAuditFix(item){
+  const { file, getFolder, getName, cardEl } = item;
+  try{
+    const targetFolderId = await resolveFolderPath(getFolder());
+    await moveRenameDriveFile(file.id, file.currentParentId, targetFolderId, getName());
+    cardEl.innerHTML = `<div class="fname">✅ ${getName()}</div><div class="hint">${t('audit_applied')} → ${getFolder()}</div>`;
+    log(t('log_audit_applied', {name: getName(), folder: getFolder()}), 'ok');
+    window._auditQueue = window._auditQueue.filter(q => q !== item);
+  } catch(e){
+    log(t('log_audit_apply_fail', {name: file.name, msg: e.message}), 'err');
+  }
+}
+
+document.getElementById('btnApplyAllAudit').addEventListener('click', async () => {
+  const queue = [...window._auditQueue];
+  for(const item of queue){
+    await applyAuditFix(item);
+  }
+  log(t('log_audit_apply_all_done'), 'ok');
+  document.getElementById('btnApplyAllAudit').style.display = 'none';
+});
+
+/* ============================================================
+   VISUAL — subtle 3D tilt on step cards (cosmetic only)
+   ============================================================ */
+document.querySelectorAll('.step').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    if(card.classList.contains('disabled')) return;
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    card.style.transform = `rotateY(${x*2.5}deg) rotateX(${-y*2.5}deg) translateZ(0)`;
+  });
+  card.addEventListener('mouseleave', () => { card.style.transform = 'rotateY(0) rotateX(0)'; });
+});
+</script>
+</body>
+</html>
