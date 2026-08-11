@@ -396,6 +396,9 @@
       <p data-i18n="s3_drop2">PDF, DOCX, JPG, PNG supported for automatic content reading</p>
     </div>
     <input type="file" id="fileInput" multiple style="display:none;">
+    <div class="row" id="fileCardsToolbar" style="display:none; margin-top:14px;">
+      <button class="btn small secondary" id="btnClearFiles" data-i18n="s3_btn_clear">Clear List</button>
+    </div>
     <div id="fileCards"></div>
   </div>
 
@@ -449,6 +452,7 @@ const TRANSLATIONS = {
     s3_sub: "AI reads the file content, suggests a folder + name per the SOP naming convention — you confirm before upload",
     s3_drop1: "📄 Drag a file here, or click to select",
     s3_drop2: "PDF, DOCX, JPG, PNG supported for automatic content reading",
+    s3_btn_clear: "Clear List",
     log_ready: "Ready. Enter your OAuth Client ID to begin.",
     pill_connected: "Connected",
     pill_exists: "exists", pill_missing: "missing",
@@ -514,6 +518,7 @@ const TRANSLATIONS = {
     s3_sub: "AI membaca kandungan fail, mencadangkan folder + nama mengikut konvensyen penamaan SOP — anda mengesahkan sebelum dimuat naik",
     s3_drop1: "📄 Seret fail ke sini, atau klik untuk memilih",
     s3_drop2: "PDF, DOCX, JPG, PNG disokong untuk pembacaan kandungan automatik",
+    s3_btn_clear: "Kosongkan Senarai",
     log_ready: "Sedia. Masukkan ID Klien OAuth anda untuk bermula.",
     pill_connected: "Disambungkan",
     pill_exists: "wujud", pill_missing: "tiada",
@@ -952,7 +957,14 @@ dropZone.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
+document.getElementById('btnClearFiles').addEventListener('click', () => {
+  document.getElementById('fileCards').innerHTML = '';
+  document.getElementById('fileCardsToolbar').style.display = 'none';
+  fileInput.value = '';
+});
+
 async function handleFiles(fileList){
+  document.getElementById('fileCardsToolbar').style.display = 'flex';
   for(const file of fileList){
     const card = renderFileCard(file);
     document.getElementById('fileCards').appendChild(card);
