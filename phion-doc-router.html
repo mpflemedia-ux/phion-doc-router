@@ -163,6 +163,13 @@
   }
   #scrollNavBtn:hover .scrollNavLabel{opacity:1;}
 
+  .audit-progress{
+    font-size:12px; font-family:var(--font-mono); color:var(--text-dim);
+    margin:14px 0 10px; display:flex; align-items:center; gap:10px;
+  }
+  .audit-progress .bar{flex:1; height:5px; border-radius:3px; background:var(--line); overflow:hidden;}
+  .audit-progress .bar-fill{height:100%; background:linear-gradient(90deg, var(--gold-soft), var(--gold)); transition:width .25s ease;}
+
   .rail{position:absolute; left:35px; top:8px; bottom:90px; width:2px; z-index:0;
     background:linear-gradient(180deg, var(--gold-glow), var(--line) 40%, var(--line) 100%);
   }
@@ -401,7 +408,15 @@
       <button class="btn" id="btnApplyAllAudit" style="display:none;" data-i18n="s4_btn_apply_all">Apply All Fixes</button>
     </div>
     <div id="auditSummary"></div>
-    <div id="auditCards"></div>
+    <div id="auditReviewer" style="display:none;">
+      <div class="audit-progress" id="auditProgress"></div>
+      <div id="auditCardSlot"></div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn small secondary" id="btnAuditPrev">&#8592; <span data-i18n="audit_btn_prev">Prev</span></button>
+        <button class="btn small secondary" id="btnAuditNext"><span data-i18n="audit_btn_next">Next</span> &#8594;</button>
+      </div>
+    </div>
+    <div id="auditAllDone" style="display:none;"></div>
   </div>
 
   <div class="log" id="log">Ready. Enter your OAuth Client ID to begin.</div>
@@ -474,7 +489,10 @@ const TRANSLATIONS = {
     log_audit_done: "Audit complete: {compliant} already compliant, {fix} need fixing.",
     log_audit_apply_fail: "Failed to fix {name}: {msg}",
     log_audit_applied: "Fixed: {name} → {folder}",
-    log_audit_apply_all_done: "Bulk fix complete."
+    log_audit_apply_all_done: "Bulk fix complete.",
+    audit_btn_prev: "Prev", audit_btn_next: "Next",
+    audit_reviewing: "Reviewing <b>{cur}</b> of <b>{total}</b> &nbsp;·&nbsp; {remaining} remaining",
+    audit_all_reviewed: "✅ All flagged files reviewed."
   },
   ms: {
     hero_label: "Enjin Penghalaan Automatik",
@@ -536,7 +554,10 @@ const TRANSLATIONS = {
     log_audit_done: "Audit selesai: {compliant} sudah patuh, {fix} perlu pembetulan.",
     log_audit_apply_fail: "Gagal memperbetulkan {name}: {msg}",
     log_audit_applied: "Diperbetulkan: {name} → {folder}",
-    log_audit_apply_all_done: "Pembetulan pukal selesai."
+    log_audit_apply_all_done: "Pembetulan pukal selesai.",
+    audit_btn_prev: "Sebelum", audit_btn_next: "Seterus",
+    audit_reviewing: "Menyemak <b>{cur}</b> daripada <b>{total}</b> &nbsp;·&nbsp; {remaining} lagi baki",
+    audit_all_reviewed: "✅ Semua fail yang ditanda telah disemak."
   }
 };
 
@@ -1122,15 +1143,19 @@ async function uploadToDrive(file, folderPath, newName, card){
 /* ============================================================
    STEP 4 — AUDIT & FIX EXISTING FILES
    ============================================================ */
-window._auditQueue = []; // items needing fix: {file, suggestion, cardEl}
+window._auditItems = []; // all items needing fix, collected after full scan
+window._auditIndex = 0;
 
 document.getElementById('btnAudit').addEventListener('click', async () => {
-  const auditCardsEl = document.getElementById('auditCards');
   const summaryEl = document.getElementById('auditSummary');
-  auditCardsEl.innerHTML = '';
+  const reviewerEl = document.getElementById('auditReviewer');
+  const allDoneEl = document.getElementById('auditAllDone');
   summaryEl.innerHTML = '';
+  reviewerEl.style.display = 'none';
+  allDoneEl.style.display = 'none';
   document.getElementById('btnApplyAllAudit').style.display = 'none';
-  window._auditQueue = [];
+  window._auditItems = [];
+  window._auditIndex = 0;
 
   log(t('log_audit_start'), null);
   const allFiles = [];
@@ -1145,6 +1170,9 @@ document.getElementById('btnAudit').addEventListener('click', async () => {
   let compliantCount = 0, fixCount = 0;
   const nameConvention = /^\d{8}_[A-Za-z0-9]+_[A-Za-z0-9]+_.+\.[A-Za-z0-9]+$/;
 
+  // Full scan happens here, silently (progress only via log) — no cards are
+  // rendered mid-scan. The reviewer only appears once every file has been
+  // read and classified, so the list of things-to-review is stable.
   for(const f of allFiles){
     const text = await extractDriveFileText(f);
     const refDate = f.createdTime ? new Date(f.createdTime) : new Date();
@@ -1167,77 +1195,117 @@ document.getElementById('btnAudit').addEventListener('click', async () => {
       continue;
     }
     fixCount++;
-    renderAuditCard(f, suggestion, auditCardsEl);
+    window._auditItems.push({ file: f, suggestion });
   }
 
   summaryEl.className = 'audit-summary';
   summaryEl.innerHTML = t('audit_summary', {total: allFiles.length, compliant: compliantCount, fix: fixCount});
   log(t('log_audit_done', {compliant: compliantCount, fix: fixCount}), 'ok');
-  if(fixCount > 0) document.getElementById('btnApplyAllAudit').style.display = 'inline-block';
+
+  if(fixCount > 0){
+    document.getElementById('btnApplyAllAudit').style.display = 'inline-block';
+    reviewerEl.style.display = 'block';
+    renderCurrentAuditItem();
+  }
 });
 
-function renderAuditCard(file, suggestion, container){
-  const card = document.createElement('div');
-  card.className = 'audit-card';
-  card.innerHTML = `
-    <div class="fname">📄 ${file.name}</div>
-    <div class="path-old">✕ ${file.currentPath || '(root)'} / ${file.name}</div>
-    <div class="field">
-      <label>${t('field_folder_label')}</label>
-      <input type="text" class="a-folder" value="${suggestion.folder}">
-    </div>
-    <div class="field">
-      <label>${t('field_name_label')}</label>
-      <input type="text" class="a-name" value="${suggestion.newName}">
-    </div>
-    <div class="path-new">✓ <span class="a-preview">${suggestion.folder} / ${suggestion.newName}</span></div>
-    <div class="row" style="margin-top:10px;">
-      <span class="pill ${suggestion.confidence==='ai'?'ok':suggestion.confidence==='rule'?'ok':'warn'}">${suggestion.confidence==='ai'?t('confidence_ai'):suggestion.confidence==='rule'?t('confidence_rule'):t('confidence_none')}</span>
-      <button class="btn small a-apply">${t('audit_btn_apply')}</button>
-      <button class="btn small secondary a-skip">${t('audit_btn_skip')}</button>
-    </div>
+function updateAuditProgress(){
+  const total = window._auditItems.length;
+  const cur = Math.min(window._auditIndex + 1, total);
+  const pct = total ? (cur/total*100) : 0;
+  document.getElementById('auditProgress').innerHTML = `
+    <span>${t('audit_reviewing', {cur, total, remaining: total - cur + 1})}</span>
+    <span class="bar"><span class="bar-fill" style="width:${pct}%"></span></span>
   `;
-  const folderInput = card.querySelector('.a-folder');
-  const nameInput = card.querySelector('.a-name');
-  const preview = card.querySelector('.a-preview');
-  const updatePreview = () => preview.textContent = `${folderInput.value} / ${nameInput.value}`;
-  folderInput.addEventListener('input', updatePreview);
-  nameInput.addEventListener('input', updatePreview);
-
-  const item = { file, getFolder: () => folderInput.value, getName: () => nameInput.value, cardEl: card };
-  window._auditQueue.push(item);
-
-  card.querySelector('.a-skip').addEventListener('click', () => {
-    card.style.display = 'none';
-    window._auditQueue = window._auditQueue.filter(q => q !== item);
-  });
-  card.querySelector('.a-apply').addEventListener('click', async () => {
-    await applyAuditFix(item);
-  });
-
-  container.appendChild(card);
 }
 
+function renderCurrentAuditItem(){
+  const slot = document.getElementById('auditCardSlot');
+  const reviewerEl = document.getElementById('auditReviewer');
+  const allDoneEl = document.getElementById('auditAllDone');
+
+  if(window._auditItems.length === 0){
+    reviewerEl.style.display = 'none';
+    allDoneEl.style.display = 'block';
+    allDoneEl.innerHTML = t('audit_all_reviewed');
+    document.getElementById('btnApplyAllAudit').style.display = 'none';
+    return;
+  }
+  if(window._auditIndex >= window._auditItems.length) window._auditIndex = window._auditItems.length - 1;
+  if(window._auditIndex < 0) window._auditIndex = 0;
+
+  updateAuditProgress();
+  const { file, suggestion } = window._auditItems[window._auditIndex];
+  slot.innerHTML = `
+    <div class="audit-card">
+      <div class="fname">📄 ${file.name}</div>
+      <div class="path-old">✕ ${file.currentPath || '(root)'} / ${file.name}</div>
+      <div class="field">
+        <label>${t('field_folder_label')}</label>
+        <input type="text" class="a-folder" value="${suggestion.folder}">
+      </div>
+      <div class="field">
+        <label>${t('field_name_label')}</label>
+        <input type="text" class="a-name" value="${suggestion.newName}">
+      </div>
+      <div class="path-new">✓ <span class="a-preview">${suggestion.folder} / ${suggestion.newName}</span></div>
+      <div class="row" style="margin-top:10px;">
+        <span class="pill ${suggestion.confidence==='rule'?'ok':'warn'}">${suggestion.confidence==='rule'?t('confidence_rule'):t('confidence_none')}</span>
+        <button class="btn small a-apply">${t('audit_btn_apply')}</button>
+        <button class="btn small secondary a-skip">${t('audit_btn_skip')}</button>
+      </div>
+    </div>
+  `;
+  const folderInput = slot.querySelector('.a-folder');
+  const nameInput = slot.querySelector('.a-name');
+  const preview = slot.querySelector('.a-preview');
+  folderInput.addEventListener('input', () => preview.textContent = `${folderInput.value} / ${nameInput.value}`);
+  nameInput.addEventListener('input', () => preview.textContent = `${folderInput.value} / ${nameInput.value}`);
+
+  slot.querySelector('.a-skip').addEventListener('click', () => {
+    window._auditItems.splice(window._auditIndex, 1);
+    renderCurrentAuditItem();
+  });
+  slot.querySelector('.a-apply').addEventListener('click', async () => {
+    const item = window._auditItems[window._auditIndex];
+    const ok = await applyAuditFix({ file: item.file, getFolder: () => folderInput.value, getName: () => nameInput.value });
+    if(ok){
+      window._auditItems.splice(window._auditIndex, 1);
+      renderCurrentAuditItem();
+    }
+  });
+}
+
+document.getElementById('btnAuditPrev').addEventListener('click', () => {
+  if(window._auditIndex > 0){ window._auditIndex--; renderCurrentAuditItem(); }
+});
+document.getElementById('btnAuditNext').addEventListener('click', () => {
+  if(window._auditIndex < window._auditItems.length - 1){ window._auditIndex++; renderCurrentAuditItem(); }
+});
+
 async function applyAuditFix(item){
-  const { file, getFolder, getName, cardEl } = item;
+  const { file, getFolder, getName } = item;
   try{
     const targetFolderId = await resolveFolderPath(getFolder());
     await moveRenameDriveFile(file.id, file.currentParentId, targetFolderId, getName());
-    cardEl.innerHTML = `<div class="fname">✅ ${getName()}</div><div class="hint">${t('audit_applied')} → ${getFolder()}</div>`;
     log(t('log_audit_applied', {name: getName(), folder: getFolder()}), 'ok');
-    window._auditQueue = window._auditQueue.filter(q => q !== item);
+    return true;
   } catch(e){
     log(t('log_audit_apply_fail', {name: file.name, msg: e.message}), 'err');
+    return false;
   }
 }
 
 document.getElementById('btnApplyAllAudit').addEventListener('click', async () => {
-  const queue = [...window._auditQueue];
+  const queue = [...window._auditItems];
   for(const item of queue){
-    await applyAuditFix(item);
+    const ok = await applyAuditFix({ file: item.file, getFolder: () => item.suggestion.folder, getName: () => item.suggestion.newName });
+    if(ok) window._auditItems = window._auditItems.filter(q => q !== item);
   }
+  window._auditIndex = 0;
   log(t('log_audit_apply_all_done'), 'ok');
   document.getElementById('btnApplyAllAudit').style.display = 'none';
+  renderCurrentAuditItem();
 });
 
 /* ============================================================
