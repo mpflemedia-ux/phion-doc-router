@@ -144,7 +144,24 @@
   @keyframes pulse{0%,100%{opacity:.5; r:5;} 50%{opacity:1; r:7;}}
   .pipeline text{font-family:var(--font-mono); font-size:10.5px; fill:var(--text-dim); letter-spacing:.5px;}
 
-  .wrap{position:relative; z-index:1; max-width:840px; margin:0 auto; padding:20px 24px 90px; perspective:1400px;}
+  .wrap{position:relative; z-index:1; max-width:840px; margin:0 auto; padding:20px 24px 90px;}
+
+  #scrollNavBtn{
+    position:fixed; right:24px; bottom:28px; z-index:50;
+    width:46px; height:46px; border-radius:50%; border:1px solid var(--line-hi);
+    background:linear-gradient(135deg, var(--gold-soft), var(--gold)); color:var(--ink-strong);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    box-shadow:0 8px 20px -6px rgba(0,0,0,.5); font-size:18px; font-weight:800;
+    opacity:0; pointer-events:none; transition:opacity .2s ease, transform .15s ease;
+  }
+  #scrollNavBtn.visible{opacity:1; pointer-events:auto;}
+  #scrollNavBtn:active{transform:scale(.94);}
+  #scrollNavBtn .scrollNavLabel{
+    position:absolute; right:56px; white-space:nowrap; font-size:11px; font-family:var(--font-mono);
+    background:var(--navy-900); border:1px solid var(--line); color:var(--text-dim);
+    padding:5px 9px; border-radius:6px; opacity:0; transition:opacity .15s ease; pointer-events:none;
+  }
+  #scrollNavBtn:hover .scrollNavLabel{opacity:1;}
 
   .rail{position:absolute; left:35px; top:8px; bottom:90px; width:2px; z-index:0;
     background:linear-gradient(180deg, var(--gold-glow), var(--line) 40%, var(--line) 100%);
@@ -156,7 +173,7 @@
     border:1px solid var(--line); border-radius:16px;
     padding:26px 28px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     box-shadow:0 20px 40px -20px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
-    transform-style:preserve-3d; transition:transform .35s ease, border-color .35s ease, box-shadow .35s ease;
+    transition:border-color .35s ease, box-shadow .35s ease;
   }
   .step:not(.disabled):hover{
     border-color:var(--line-hi);
@@ -276,6 +293,10 @@
 </style>
 </head>
 <body>
+<button id="scrollNavBtn" type="button" aria-label="Scroll navigation">
+  <span class="scrollNavLabel" id="scrollNavLabel">Go to Audit</span>
+  <span id="scrollNavIcon">&#8593;</span>
+</button>
 
 <div class="topbar">
   <div>
@@ -1207,18 +1228,54 @@ document.getElementById('btnApplyAllAudit').addEventListener('click', async () =
 });
 
 /* ============================================================
-   VISUAL — subtle 3D tilt on step cards (cosmetic only)
+   Floating scroll nav button
+   1st click: scroll to Audit & Fix Existing Files (#step4)
+   2nd click (already there): scroll to top
    ============================================================ */
-document.querySelectorAll('.step').forEach(card => {
-  card.addEventListener('mousemove', e => {
-    if(card.classList.contains('disabled')) return;
-    const r = card.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    card.style.transform = `rotateY(${x*2.5}deg) rotateX(${-y*2.5}deg) translateZ(0)`;
+(function(){
+  const scrollBtn = document.getElementById('scrollNavBtn');
+  const scrollLabel = document.getElementById('scrollNavLabel');
+  const scrollIcon = document.getElementById('scrollNavIcon');
+  const auditSection = document.getElementById('step4');
+
+  function nearAuditSection(){
+    if(!auditSection) return false;
+    const r = auditSection.getBoundingClientRect();
+    // considered "there" if the audit section top is within the viewport's upper half
+    return r.top >= -40 && r.top <= window.innerHeight * 0.5;
+  }
+
+  function updateLabel(){
+    if(nearAuditSection()){
+      scrollLabel.textContent = 'Back to Top';
+      scrollIcon.innerHTML = '&#8607;';
+    } else {
+      scrollLabel.textContent = 'Go to Audit';
+      scrollIcon.innerHTML = '&#8593;';
+    }
+  }
+
+  function toggleVisibility(){
+    if(window.scrollY > 200){
+      scrollBtn.classList.add('visible');
+    } else {
+      scrollBtn.classList.remove('visible');
+    }
+    updateLabel();
+  }
+
+  scrollBtn.addEventListener('click', () => {
+    if(nearAuditSection() || !auditSection){
+      window.scrollTo({top:0, behavior:'smooth'});
+    } else {
+      auditSection.scrollIntoView({behavior:'smooth', block:'start'});
+    }
   });
-  card.addEventListener('mouseleave', () => { card.style.transform = 'rotateY(0) rotateX(0)'; });
-});
+
+  window.addEventListener('scroll', toggleVisibility, {passive:true});
+  toggleVisibility();
+})();
+
 </script>
 </body>
 </html>
