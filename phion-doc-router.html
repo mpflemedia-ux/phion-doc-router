@@ -655,7 +655,7 @@ const CLIENT_SUBFOLDERS = [
    Path guna "/" sebagai separator, resolved relative to root.
    ============================================================ */
 const RULES = [
-  { test: /claim|tuntutan|mileage|reimburse/i, category: "HR_Claim",
+  { test: /\bclaim\b|tuntutan|mileage|reimburse/i, category: "HR_Claim",
     folder: "03_Human Resource/03.2_Claims & Reimbursement/{YEAR}/{MONTH}" },
   { test: /invoice|\binv\b|resit|receipt/i, category: "INV",
     folder: "02_Finance/02.1_Invoices (Client)/{YEAR}/{MONTH}" },
@@ -665,6 +665,10 @@ const RULES = [
     folder: "03_Human Resource/03.4_Payslips/{YEAR}/{MONTH}" },
   { test: /\bnda\b|non[- ]disclosure/i, category: "NDA",
     folder: "08_Legal/NDAs" },
+  { test: /\bletterhead\b|\blogo\b|brand (guideline|identity|asset)/i, category: "BrandAsset",
+    folder: "04_Brand & Marketing/04.1_Brand Assets" },
+  { test: /\bbusiness card\b|\bnamecard\b|kad (perniagaan|nama)\b/i, category: "BusinessCard",
+    folder: "04_Brand & Marketing/04.1_Brand Assets" },
   { test: /contract|agreement|perjanjian/i, category: "Contract",
     folder: "05_Clients/{CLIENT}/01_Contracts & Agreements" },
   { test: /proposal|quotation|sebut harga/i, category: "Proposal",
@@ -675,7 +679,7 @@ const RULES = [
     folder: "02_Finance/02.4_Bank Statements/{YEAR}/{MONTH}" },
   { test: /appraisal|penilaian prestasi/i, category: "Appraisal",
     folder: "03_Human Resource/03.5_Appraisals/{YEAR}" },
-  { test: /leave application|cuti/i, category: "Leave",
+  { test: /\bleave application\b|\bcuti\b/i, category: "Leave",
     folder: "03_Human Resource/03.3_Leave Applications/{YEAR}" }
 ];
 
@@ -1006,7 +1010,7 @@ async function classify(filename, text, referenceDate){
   const shortDesc = description.split(' ').slice(0,5).join(' ').replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'');
   const newName = `${dateStr}_${COMPANY}_${category}_${shortDesc}_Draft.${ext}`;
 
-  return { category, folder, newName, confidence: rule ? 'rule' : (groqKey ? 'ai' : 'none') };
+  return { category, folder, newName, confidence: rule ? 'rule' : 'none' };
 }
 
 async function groqClassify(apiKey, filename, text){
@@ -1145,6 +1149,15 @@ document.getElementById('btnAudit').addEventListener('click', async () => {
     const text = await extractDriveFileText(f);
     const refDate = f.createdTime ? new Date(f.createdTime) : new Date();
     const suggestion = await classify(f.name, text, refDate);
+
+    // Safety net: no rule confidently matched this file (e.g. brand assets,
+    // business cards, or anything without a recognized keyword). Don't force
+    // it out of wherever it already lives — only flag a rename if needed.
+    // Prevents unrecognized-but-correctly-placed files from being
+    // auto-suggested into 99_Archive.
+    if(suggestion.confidence === 'none'){
+      suggestion.folder = f.currentPath || suggestion.folder;
+    }
 
     const pathCompliant = f.currentPath === suggestion.folder;
     const nameCompliant = nameConvention.test(f.name);
